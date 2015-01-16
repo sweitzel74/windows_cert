@@ -16,12 +16,12 @@ module WindowsCert
     end
 
     def create_task(params)
-      ecommand = encode_command(params)
+      cert_path_and_filename = gen_temp_ps_script(params)
       windows_task "#{task_name}" do
         user "#{params[:admin_user]}"
         password "#{params[:admin_password]}"
         cwd Chef::Config[:file_cache_path]
-        command "powershell.exe -EncodedCommand #{ecommand}"
+        command "powershell.exe -ExecutionPolicy RemoteSigned -File #{cert_path_and_filename}"
         run_level :highest
       end
     end
@@ -30,44 +30,33 @@ module WindowsCert
       windows_task "#{task_name}" do
         action :run
       end
+      check_script_output("#{Chef::Config[:file_cache_path]}/cert_script.out")
     end
 
     def delete_task(task_name)
       windows_task "#{task_name}" do
         action :delete
+        force true
       end
     end
 
     def task_name
-      @task_name ||= Datetime.now.to_s.gsub(/[\x00\/\\:\*\?\"<>\|]/, '_')
+      @task_name ||= DateTime.now.to_s.gsub(/[\x00\/\\:\*\?\"<>\|]/, '_')
     end
 
     # rubocop:disable Metrics/MethodLength
-    def encode_command(params)
-      ps_script = <<-EOH
-        [String]$certPath = "#{params[:cert_file]}"
-        [String]$pfxPass = "#{params[:cert_password]}"
-        [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]`
-        $flags = "#{build_flags(params).join(',')}"
-        $pfx = new-object `
-               System.Security.Cryptography.X509Certificates.X509Certificate2
-        $pfx.import($certPath, $pfxPass, $flags)
-        [String]$certStore = "#{params[:cert_store]}"
-        [String]$certRoot = "#{params[:cert_root]}"
-        $store = new-object `
-                 System.Security.Cryptography.X509Certificates.X509Store( `
-                 $certStore, $certRoot)
-        $store.open("MaxAllowed")
-        [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]`
-        $fcollection = `
-          [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]$store.Certificates.Find(`
-          [System.Security.Cryptography.X509Certificates.X509FindType]"FindByThumbprint",`
-          $pfx.Thumbprint,`
-          $false)
-        if ($fcollection.Count -eq 0) {$store.add($pfx)}
-        $store.close()
-      EOH
-      ps_script.encode('UTF-16LE', 'UTF-8').Base64.strict_encode64
+    def gen_temp_ps_script(params)
+      my_flags = build_flags(params).join(',')
+      out_file = "#{Chef::Config[:file_cache_path]}/cert_script.out"
+      my_file = "#{Chef::Config[:file_cache_path]}/cert_script.ps1"
+      template my_file do
+        source 'cert_script.ps1.erb'
+        cookbook 'windows_cert'
+        sensitive true
+        variables my_flags: my_flags, params: params, out_file: out_file
+        action :create
+      end
+      my_file
     end
 
     def build_flags(params)
@@ -80,6 +69,27 @@ module WindowsCert
         storage_flags.push('DefaultKeySet')
       end
       storage_flags
+    end
+
+    def check_script_output(script_outfile)
+      ruby_block 'check_script_output' do
+        block do
+          until File.exist?(script_outfile)
+            Chef::Log.info('Waiting for cert install script to complete.')
+            sleep(5)
+          end
+         File.open(script_outfile, 'r') do |f|
+           f.each_line do |line|
+             Chef::Log.info(line)
+             if line.include? 'Added cert to store.'
+               new_resource.updated_by_last_action(true)
+             else
+               new_resource.updated_by_last_action(false)
+             end
+           end
+         end
+        end
+      end
     end
   end
 end

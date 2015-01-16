@@ -5,7 +5,6 @@
 #
 
 include WindowsCert::Pfx
-use_inline_resources
 
 action :install do
   install_pfx_certificate(
