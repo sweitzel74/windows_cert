@@ -10,53 +10,22 @@ module WindowsCert
     def install_pfx_certificate(params = {})
       # The cert is installed via schedule tasks to workaround "delegated"
       # credential security issues triggered by the "pfx.import" call
+      gen_script(params)
       create_task(params)
-      run_task(task_name)
-      delete_task(task_name)
+      run_task
+      delete_task
+      delete_temp_files
     end
 
-    def create_task(params)
-      cert_path_and_filename = gen_temp_ps_script(params)
-      windows_task "#{task_name}" do
-        user "#{params[:admin_user]}"
-        password "#{params[:admin_password]}"
-        cwd Chef::Config[:file_cache_path]
-        command "powershell.exe -ExecutionPolicy RemoteSigned -File #{cert_path_and_filename}"
-        run_level :highest
-      end
-    end
-
-    def run_task(task_name)
-      windows_task "#{task_name}" do
-        action :run
-      end
-      check_script_output("#{Chef::Config[:file_cache_path]}/cert_script.out")
-    end
-
-    def delete_task(task_name)
-      windows_task "#{task_name}" do
-        action :delete
-        force true
-      end
-    end
-
-    def task_name
-      @task_name ||= DateTime.now.to_s.gsub(/[\x00\/\\:\*\?\"<>\|]/, '_')
-    end
-
-    # rubocop:disable Metrics/MethodLength
-    def gen_temp_ps_script(params)
+    def gen_script(params)
       my_flags = build_flags(params).join(',')
-      out_file = "#{Chef::Config[:file_cache_path]}/cert_script.out"
-      my_file = "#{Chef::Config[:file_cache_path]}/cert_script.ps1"
-      template my_file do
+      template script_file do
         source 'cert_script.ps1.erb'
         cookbook 'windows_cert'
         sensitive true
         variables my_flags: my_flags, params: params, out_file: out_file
-        action :create
-      end
-      my_file
+        action :nothing
+      end.run_action(:create)
     end
 
     def build_flags(params)
@@ -71,25 +40,78 @@ module WindowsCert
       storage_flags
     end
 
-    def check_script_output(script_outfile)
-      ruby_block 'check_script_output' do
-        block do
-          until File.exist?(script_outfile)
-            Chef::Log.info('Waiting for cert install script to complete.')
-            sleep(5)
-          end
-         File.open(script_outfile, 'r') do |f|
-           f.each_line do |line|
-             Chef::Log.info(line)
-             if line.include? 'Added cert to store.'
-               new_resource.updated_by_last_action(true)
-             else
-               new_resource.updated_by_last_action(false)
-             end
-           end
-         end
+    def script_file
+      @script_file ||= "#{Chef::Config[:file_cache_path]}/cert_script.ps1"
+    end
+
+    def out_file
+      @out_file ||= "#{Chef::Config[:file_cache_path]}/cert_script.out"
+    end
+
+    def create_task(params)
+      windows_task task_name do
+        user "#{params[:admin_user]}"
+        password "#{params[:admin_password]}"
+        cwd Chef::Config[:file_cache_path]
+        command "powershell.exe -ExecutionPolicy RemoteSigned -File #{script_file}"
+        run_level :highest
+        action :nothing
+      end.run_action(:create)
+    end
+
+    def task_name
+      @task_name ||= DateTime.now.to_s.gsub(/[\x00\/\\:\*\?\"<>\|]/, '_')
+    end
+
+    def run_task
+      windows_task task_name do
+        action :nothing
+      end.run_action(:run)
+      wait_for_output
+      check_result
+    end
+
+    # rubocop:disable Metrics/MethodLength
+    def wait_for_output
+      timeout = 0
+      until File.exist?(out_file)
+        if timeout < 18 # Allow up to 90 seconds to install
+          timeout += 1
+          Chef::Log.info('Waiting for cert install script to complete.')
+          sleep(5)
+        else
+          Chef::Log.error('Install timeout: Task completion log not found.')
+          Chef::Log.error('Install timeout: Aborting run.')
+          fail
         end
       end
+    end
+
+    def check_result
+      File.open(out_file, 'r') do |f|
+        f.each_line do |line|
+          Chef::Log.info(line)
+          if line.include? 'Added cert to store.'
+            new_resource.updated_by_last_action(true)
+          end
+        end
+      end
+    end
+
+    def delete_task
+      windows_task task_name do
+        action :nothing
+        force true
+      end.run_action(:delete)
+    end
+
+    def delete_temp_files
+      file script_file do
+        action :nothing
+      end.run_action(:delete)
+      file out_file do
+        action :nothing
+      end.run_action(:delete)
     end
   end
 end
