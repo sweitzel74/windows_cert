@@ -107,9 +107,11 @@ module WindowsCert
 
     def delete_temp_files
       file script_file do
+        backup false
         action :nothing
       end.run_action(:delete)
       file out_file do
+        backup false
         action :nothing
       end.run_action(:delete)
     end
