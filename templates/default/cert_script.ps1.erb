@@ -1,0 +1,29 @@
+[String]$certPath = "<%= @params[:cert_file] %>"
+[String]$pfxPass = "<%= @params[:cert_password] %>"
+[String]$outfile = "<%= @out_file %>"
+[System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]`
+$flags = "<%= @my_flags %>"
+$pfx = new-object `
+       System.Security.Cryptography.X509Certificates.X509Certificate2
+$pfx.import($certPath, $pfxPass, $flags)
+[String]$certStore = "<%= @params[:cert_store] %>"
+[String]$certRoot = "<%= @params[:cert_root] %>"
+$store = new-object `
+         System.Security.Cryptography.X509Certificates.X509Store( `
+         $certStore, $certRoot)
+$store.open("MaxAllowed")
+[System.Security.Cryptography.X509Certificates.X509Certificate2Collection]`
+$fcollection = `
+  [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]$store.Certificates.Find(`
+  [System.Security.Cryptography.X509Certificates.X509FindType]"FindByThumbprint",`
+  $pfx.Thumbprint,`
+  $false)
+$stream = [System.IO.StreamWriter] $outfile
+if ($fcollection.Count -eq 0) {
+  $store.add($pfx)
+  $stream.WriteLine("Added cert to store.")
+} else {
+  stream.WriteLine("Cert already found, no action taken.")
+}
+$stream.close()
+$store.close()

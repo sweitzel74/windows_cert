@@ -9,6 +9,6 @@ maintainer_email 'sweitzel74@gmail.com'
 license 'all_rights'
 description 'Installs/Configures windows_cert'
 long_description 'Installs/Configures windows_cert'
-version '0.1.0'
+version '0.1.1'
 
 supports 'windows'
