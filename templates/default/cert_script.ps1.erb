@@ -23,7 +23,12 @@ if ($fcollection.Count -eq 0) {
   $store.add($pfx)
   $stream.WriteLine("Added cert to store.")
 } else {
-  stream.WriteLine("Cert already found, no action taken.")
+  $stream.WriteLine("Cert already found, no action taken.")
 }
 $stream.close()
 $store.close()
+$acl = Get-Acl $outfile
+$ar = new-object System.Security.AccessControl.FileSystemAccessRule( `
+                 "Everyone", "FullControl", "Allow")
+$acl.SetAccessRule($ar)
+Set-Acl $outfile $acl
