@@ -50,8 +50,8 @@ module WindowsCert
 
     def create_task(params)
       windows_task task_name do
-        user "#{params[:admin_user]}"
-        password "#{params[:admin_password]}"
+        user params[:admin_user]
+        password params[:admin_password]
         cwd Chef::Config[:file_cache_path]
         command "powershell.exe -ExecutionPolicy RemoteSigned -File #{script_file}"
         run_level :highest
