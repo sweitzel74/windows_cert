@@ -9,7 +9,7 @@ provisioner:
 platforms:
   - name: windows2012r2
     driver:
-      box: virtualbox_windows-2008r2sp1_chef-11.12.4_1.0.2
+      box: daptiv/windows2012r2_chef12
     driver_config:
       communicator: winrm
     transport:
