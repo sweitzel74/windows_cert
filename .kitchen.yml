@@ -1,0 +1,21 @@
+---
+driver:
+  name: vagrant
+  provider: virtualbox
+
+provisioner:
+  name: chef_zero
+
+platforms:
+  - name: windows2012r2
+    driver:
+      box: virtualbox_windows-2008r2sp1_chef-11.12.4_1.0.2
+    driver_config:
+      communicator: winrm
+    transport:
+      name: winrm
+
+suites:
+  - name: default
+    run_list:
+      - recipe[windows_cert::test_pfx_resource]
