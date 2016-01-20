@@ -9,7 +9,7 @@ maintainer_email 'sweitzel74@gmail.com'
 license 'all_rights'
 description 'Installs/Configures windows_cert'
 long_description 'Installs/Configures windows_cert'
-version '0.2.0'
+version '0.2.1'
 
 depends  'windows', '~> 1.38'
 supports 'windows'
