@@ -75,7 +75,7 @@ module WindowsCert
     def wait_for_output
       timeout = 0
       until File.exist?(out_file)
-        if timeout < 18 # Allow up to 90 seconds to install
+        if timeout < 36 # Allow up to 3 minutes to install
           timeout += 1
           Chef::Log.info('Waiting for cert install script to complete.')
           sleep(5)
