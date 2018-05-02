@@ -18,3 +18,5 @@ attribute :persist_key, \
 attribute :storage_location, kind_of: String, required: false
 attribute :cert_store, kind_of: String, required: true
 attribute :cert_root, kind_of: String, required: true
+attribute :admin_user, kind_of: String, required: false
+attribute :admin_password, kind_of: String, required: false
