@@ -14,6 +14,8 @@ action :install do
     persist_key: @new_resource.persist_key,
     storage_location: @new_resource.storage_location,
     cert_store: @new_resource.cert_store,
-    cert_root: @new_resource.cert_root
+    cert_root: @new_resource.cert_root,
+    admin_user: @new_resource.admin_user,
+    admin_password: @new_resource.admin_password
   )
 end
